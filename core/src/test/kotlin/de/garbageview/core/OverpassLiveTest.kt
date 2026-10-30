@@ -20,7 +20,9 @@ class OverpassLiveTest {
     fun berlinMitteHasWasteBasketsAndGlassContainers() {
         assumeTrue(System.getenv("OVERPASS_LIVE_TEST") == "1")
 
-        val query = OverpassQuery.build(BoundingBox(52.510, 13.380, 52.525, 13.410))
+        // Eine Kachel in Berlin-Mitte, wie die App sie abfragt.
+        val grid = TileGrid()
+        val query = OverpassQuery.build(grid.bounds(grid.tileOf(52.5175, 13.3950)))
         val client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(20)).build()
         val body = ENDPOINTS.firstNotNullOfOrNull { endpoint ->
             val request = HttpRequest.newBuilder(URI(endpoint))
@@ -29,10 +31,11 @@ class OverpassLiveTest {
                 .header("Content-Type", "application/x-www-form-urlencoded")
                 .POST(HttpRequest.BodyPublishers.ofString("data=" + URLEncoder.encode(query, Charsets.UTF_8)))
                 .build()
+            val started = System.currentTimeMillis()
             val response = runCatching { client.send(request, HttpResponse.BodyHandlers.ofString()) }
                 .onFailure { println("$endpoint: ${it.javaClass.simpleName}: ${it.message}") }
                 .getOrNull() ?: return@firstNotNullOfOrNull null
-            println("$endpoint: HTTP ${response.statusCode()}")
+            println("$endpoint: HTTP ${response.statusCode()} in ${System.currentTimeMillis() - started} ms")
             if (response.statusCode() == 200) response.body() else {
                 println(response.body().take(500))
                 null

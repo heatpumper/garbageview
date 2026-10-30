@@ -9,7 +9,7 @@ class GarbageViewApp : Application() {
 
     val repository: PoiRepository by lazy {
         // Versioniert: Cache-Dateien früherer Versionen (teils leer oder fehlerhaft) nicht wiederverwenden.
-        PoiRepository(OverpassClient(), cacheDir = cacheDir.resolve("overpass-v3"))
+        PoiRepository(OverpassClient(), cacheDir = cacheDir.resolve("overpass-v4"))
     }
 
     override fun onCreate() {

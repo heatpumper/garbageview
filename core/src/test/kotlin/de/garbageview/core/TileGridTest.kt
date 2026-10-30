@@ -39,6 +39,7 @@ class TileGridTest {
         assertEquals(13.35, bounds.west, 1e-9)
         assertEquals(13.45, bounds.east, 1e-9)
         assertEquals(TileGrid.Tile(268, 1050), grid.tileOf(52.52, 13.40))
+        assertEquals(TileGrid.Tile(670, 2626), TileGrid().tileOf(52.52, 13.40))
     }
 
     @Test

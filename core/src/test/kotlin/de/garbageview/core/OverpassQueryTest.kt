@@ -14,15 +14,15 @@ class OverpassQueryTest {
         val query = OverpassQuery.build(bbox)
         assertTrue(query.startsWith("[out:json][timeout:60];"))
         assertTrue(query.contains("""nwr["amenity"="recycling"](51.0,7.0,51.05,7.05);"""))
-        assertTrue(query.contains("""nwr["amenity"="waste_basket"](51.0,7.0,51.05,7.05);"""))
+        assertTrue(query.contains("""node["amenity"="waste_basket"](51.0,7.0,51.05,7.05);"""))
         assertFalse(query.contains("recycling:glass"))
-        assertTrue(query.endsWith("\nout center;"))
+        assertTrue(query.endsWith("\nout center qt;"))
     }
 
     @Test
     fun singleCategory() {
         val query = OverpassQuery.build(bbox, listOf(WasteCategory.GLASS))
-        assertEquals(2, query.lines().count { it.trim().startsWith("nwr") })
+        assertEquals(2, query.lines().count { it.trim().startsWith("nwr[") })
         assertTrue(query.contains("""["recycling:glass_bottles"="yes"]"""))
     }
 }

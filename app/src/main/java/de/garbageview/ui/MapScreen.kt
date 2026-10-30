@@ -10,6 +10,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -347,12 +349,12 @@ private fun StatusCard(state: MapUiState, onRetry: () -> Unit) {
                             if (found.isEmpty()) {
                                 Text(
                                     if (active.isEmpty()) "Keine Kategorie ausgewählt"
-                                    else "Hier nichts gefunden",
+                                    else "In diesem Ausschnitt nichts gefunden",
                                     style = MaterialTheme.typography.bodyMedium,
                                 )
                             } else {
                                 Text(
-                                    "${state.pois.size} Standorte gefunden",
+                                    "In diesem Ausschnitt:",
                                     style = MaterialTheme.typography.bodyMedium,
                                 )
                                 Spacer(Modifier.size(4.dp))
@@ -384,10 +386,15 @@ private fun StatusCard(state: MapUiState, onRetry: () -> Unit) {
     }
 }
 
+/** Kategoriesymbole (optional mit Anzahl); bricht bei Platzmangel in die nächste Zeile um. */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun BadgeRow(categories: List<WasteCategory>, counts: Map<WasteCategory, Int>? = null) {
-    LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        items(categories) { category ->
+    FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        categories.forEach { category ->
             Row(verticalAlignment = Alignment.CenterVertically) {
                 CategoryBadge(category, size = 18.dp)
                 counts?.get(category)?.let {

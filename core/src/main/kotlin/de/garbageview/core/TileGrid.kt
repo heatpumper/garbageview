@@ -6,7 +6,7 @@ import kotlin.math.floor
  * Teilt die Welt in feste Kacheln von [sizeDegrees] Grad. Abfragen und Cache arbeiten
  * pro Kachel, damit kleine Kartenverschiebungen keine neuen Abfragen auslösen.
  */
-class TileGrid(val sizeDegrees: Double = 0.05) {
+class TileGrid(val sizeDegrees: Double = 0.02) {
 
     data class Tile(val x: Int, val y: Int) {
         val key: String get() = "${x}_$y"

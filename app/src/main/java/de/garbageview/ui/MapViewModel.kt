@@ -33,9 +33,9 @@ sealed interface SearchStatus {
 
 data class MapUiState(
     val enabled: Set<WasteCategory> = WasteCategory.entries.toSet(),
-    /** Geladene Standorte im sichtbaren Bereich, bereits nach [enabled] gefiltert. */
+    /** Geladene Standorte rund um den Ausschnitt, bereits nach [enabled] gefiltert. */
     val pois: List<WastePoi> = emptyList(),
-    /** Anzahl je Kategorie im sichtbaren Bereich, unabhängig vom Filter. */
+    /** Anzahl je Kategorie im sichtbaren Ausschnitt, unabhängig vom Filter. */
     val counts: Map<WasteCategory, Int> = emptyMap(),
     val status: SearchStatus = SearchStatus.ZoomTooLow,
     val selected: WastePoi? = null,
@@ -66,10 +66,15 @@ class MapViewModel(private val repository: PoiRepository) : ViewModel() {
             publish(cached.flatten(), SearchStatus.Done)
             return
         }
-        // Bereits bekannte Kacheln sofort zeigen, den Rest suchen.
+        // Bereits bekannte Kacheln sofort zeigen, den Rest suchen: zuerst die Kachel in der
+        // Bildschirmmitte (kleine, schnelle Abfrage), danach die übrigen in einer Abfrage.
         publish(cached.flatten(), SearchStatus.Searching)
         loadJob = viewModelScope.launch {
             try {
+                if (repository.cached(ordered.first()) == null && ordered.size > 1) {
+                    repository.load(ordered.take(1))
+                    publish(ordered.mapNotNull { repository.cached(it) }.flatten(), SearchStatus.Searching)
+                }
                 publish(repository.load(ordered), SearchStatus.Done)
             } catch (e: CancellationException) {
                 throw e
@@ -102,7 +107,10 @@ class MapViewModel(private val repository: PoiRepository) : ViewModel() {
 
     private fun publish(pois: List<WastePoi>, status: SearchStatus) {
         visible = pois.associateBy { it.key }
-        val counts = WasteCategory.entries.associateWith { c -> visible.values.count { c in it.categories } }
+        // Geladen werden ganze Kacheln; gezählt wird nur, was auf dem Bildschirm liegt.
+        val bbox = lastViewport?.first
+        val onScreen = visible.values.filter { bbox == null || bbox.contains(it.lat, it.lon) }
+        val counts = WasteCategory.entries.associateWith { c -> onScreen.count { c in it.categories } }
         _state.update {
             it.copy(pois = filter(visible, it.enabled), counts = counts, status = status)
         }
@@ -113,8 +121,8 @@ class MapViewModel(private val repository: PoiRepository) : ViewModel() {
 
     companion object {
         /** Unterhalb dieser Zoomstufe wird nicht gesucht (Last auf Overpass begrenzen). */
-        const val MIN_ZOOM = 13.0
-        const val MAX_TILES = 9
+        const val MIN_ZOOM = 14.0
+        const val MAX_TILES = 12
 
         val Factory: ViewModelProvider.Factory = viewModelFactory {
             initializer {
