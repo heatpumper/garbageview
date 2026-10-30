@@ -9,13 +9,24 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.longOrNull
 
+/** Overpass hat die Abfrage abgebrochen (z. B. Zeitüberschreitung oder Überlastung). */
+class OverpassException(message: String) : Exception(message)
+
 /** Liest die JSON-Antwort der Overpass API. */
 object OverpassParser {
 
     private val json = Json { ignoreUnknownKeys = true }
 
+    /**
+     * @throws OverpassException wenn Overpass einen Laufzeitfehler meldet. Solche Antworten
+     *   enthalten keine oder nur einen Teil der Daten und dürfen nicht gecacht werden.
+     */
     fun parse(body: String): List<WastePoi> {
         val root = json.parseToJsonElement(body).jsonObject
+        val remark = root["remark"]?.jsonPrimitive?.contentOrNull
+        if (remark != null && remark.contains("error", ignoreCase = true)) {
+            throw OverpassException(remark)
+        }
         val elements = root["elements"]?.jsonArray ?: return emptyList()
         return elements.mapNotNull { parseElement(it.jsonObject) }
     }

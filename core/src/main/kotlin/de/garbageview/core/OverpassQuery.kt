@@ -12,7 +12,7 @@ object OverpassQuery {
     fun build(
         bbox: BoundingBox,
         categories: Collection<WasteCategory> = WasteCategory.entries,
-        timeoutSeconds: Int = 25,
+        timeoutSeconds: Int = 60,
     ): String {
         val box = bbox.toOverpass()
         val selectors = categories.flatMap { it.overpassSelectors }.distinct()

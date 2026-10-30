@@ -29,6 +29,19 @@ class TileGrid(val sizeDegrees: Double = 0.05) {
         east = (tile.x + 1) * sizeDegrees,
     )
 
+    fun tileOf(lat: Double, lon: Double): Tile = Tile(index(lon), index(lat))
+
+    /** Kleinstes Rechteck, das alle [tiles] umfasst. */
+    fun boundsOf(tiles: Collection<Tile>): BoundingBox {
+        require(tiles.isNotEmpty())
+        return BoundingBox(
+            south = tiles.minOf { it.y } * sizeDegrees,
+            west = tiles.minOf { it.x } * sizeDegrees,
+            north = (tiles.maxOf { it.y } + 1) * sizeDegrees,
+            east = (tiles.maxOf { it.x } + 1) * sizeDegrees,
+        )
+    }
+
     /** Sortiert Kacheln nach Abstand zum Mittelpunkt, damit die Mitte zuerst lädt. */
     fun sortedByDistance(tiles: List<Tile>, centerLat: Double, centerLon: Double): List<Tile> {
         val cx = centerLon / sizeDegrees - 0.5

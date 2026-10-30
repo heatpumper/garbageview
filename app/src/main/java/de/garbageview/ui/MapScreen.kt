@@ -7,7 +7,6 @@ import android.content.pm.PackageManager
 import android.graphics.RectF
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,20 +21,17 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -45,8 +41,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
@@ -54,6 +51,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import de.garbageview.R
 import de.garbageview.core.BoundingBox
 import de.garbageview.core.GeoJson
 import de.garbageview.core.WasteCategory
@@ -67,14 +65,17 @@ import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.MapView
 import org.maplibre.android.maps.Style
 import org.maplibre.android.style.expressions.Expression
-import org.maplibre.android.style.layers.CircleLayer
 import org.maplibre.android.style.layers.PropertyFactory
+import org.maplibre.android.style.layers.SymbolLayer
 import org.maplibre.android.style.sources.GeoJsonSource
 
 /** Kostenloser Vektor-Kartenstil ohne API-Key, siehe docs/DATENQUELLEN.md. */
 private const val STYLE_URL = "https://tiles.openfreemap.org/styles/liberty"
 private const val SOURCE_ID = "pois"
-private const val LAYER_ID = "pois-circle"
+private const val LAYER_ID = "pois-symbols"
+
+/** Startausschnitt; ohne Angabe wird ganz Deutschland gezeigt. */
+data class InitialCamera(val lat: Double, val lon: Double, val zoom: Double)
 
 /** Hält die MapLibre-Objekte über Recompositions hinweg. */
 private class MapHolder {
@@ -85,7 +86,7 @@ private class MapHolder {
 }
 
 @Composable
-fun MapScreen(viewModel: MapViewModel) {
+fun MapScreen(viewModel: MapViewModel, initialCamera: InitialCamera? = null) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val holder = remember { MapHolder() }
@@ -102,8 +103,9 @@ fun MapScreen(viewModel: MapViewModel) {
     Box(Modifier.fillMaxSize()) {
         MapLibreView(
             holder = holder,
+            initialCamera = initialCamera,
             onReady = {
-                if (hasLocationPermission) holder.enableLocation(context, moveCamera = true)
+                if (hasLocationPermission) holder.enableLocation(context, moveCamera = initialCamera == null)
             },
             onViewport = viewModel::onViewportChanged,
             onFeatureClick = viewModel::select,
@@ -115,17 +117,15 @@ fun MapScreen(viewModel: MapViewModel) {
                 ?.setGeoJson(GeoJson.featureCollection(state.pois))
         }
 
-        Column(
-            Modifier
+        CategoryChips(
+            enabled = state.enabled,
+            counts = state.counts.takeIf { state.status == SearchStatus.Done },
+            onToggle = viewModel::toggle,
+            modifier = Modifier
                 .align(Alignment.TopStart)
                 .fillMaxWidth()
                 .statusBarsPadding(),
-        ) {
-            CategoryChips(enabled = state.enabled, onToggle = viewModel::toggle)
-            if (state.loading) {
-                LinearProgressIndicator(Modifier.fillMaxWidth().padding(horizontal = 12.dp))
-            }
-        }
+        )
 
         Column(
             Modifier
@@ -137,7 +137,7 @@ fun MapScreen(viewModel: MapViewModel) {
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             SmallFloatingActionButton(onClick = { showAbout = true }) {
-                Icon(Icons.Filled.Info, contentDescription = "Info und Quellen")
+                Icon(painterResource(R.drawable.ic_info), contentDescription = "Info und Quellen")
             }
             FloatingActionButton(onClick = {
                 if (hasLocationPermission) {
@@ -148,9 +148,9 @@ fun MapScreen(viewModel: MapViewModel) {
                     )
                 }
             }) {
-                Icon(Icons.Filled.MyLocation, contentDescription = "Mein Standort")
+                Icon(painterResource(R.drawable.ic_my_location), contentDescription = "Mein Standort")
             }
-            StatusCard(state)
+            StatusCard(state, onRetry = viewModel::retry)
         }
     }
 
@@ -163,6 +163,7 @@ fun MapScreen(viewModel: MapViewModel) {
 @Composable
 private fun MapLibreView(
     holder: MapHolder,
+    initialCamera: InitialCamera?,
     onReady: () -> Unit,
     onViewport: (BoundingBox, Double) -> Unit,
     onFeatureClick: (String?) -> Unit,
@@ -182,8 +183,10 @@ private fun MapLibreView(
                         BoundingBox.GERMANY.south, BoundingBox.GERMANY.west,
                     ),
                 )
-                map.moveCamera(CameraUpdateFactory.newLatLngZoom(LatLng(51.16, 10.45), 5.5))
+                val start = initialCamera ?: InitialCamera(51.16, 10.45, 5.5)
+                map.moveCamera(CameraUpdateFactory.newLatLngZoom(LatLng(start.lat, start.lon), start.zoom))
                 map.setStyle(Style.Builder().fromUri(STYLE_URL)) { style ->
+                    WasteCategory.entries.forEach { style.addImage(it.name, markerBitmap(context, it)) }
                     style.addSource(GeoJsonSource(SOURCE_ID, GeoJson.featureCollection(emptyList())))
                     style.addLayer(poiLayer())
                     holder.style = style
@@ -238,24 +241,19 @@ private fun MapLibreView(
     AndroidView(factory = { mapView }, modifier = Modifier.fillMaxSize())
 }
 
-private fun poiLayer(): CircleLayer {
-    val stops = WasteCategory.entries.map {
-        Expression.stop(it.name, Expression.color(android.graphics.Color.parseColor(it.colorHex)))
-    }.toTypedArray()
-    return CircleLayer(LAYER_ID, SOURCE_ID).withProperties(
-        PropertyFactory.circleColor(
-            Expression.match(Expression.get(GeoJson.PROP_CATEGORY), Expression.color(android.graphics.Color.GRAY), *stops),
-        ),
-        PropertyFactory.circleRadius(
+/** Marker mit Kategoriesymbol; die Bilder heißen wie die Kategorie (siehe addImage). */
+private fun poiLayer(): SymbolLayer =
+    SymbolLayer(LAYER_ID, SOURCE_ID).withProperties(
+        PropertyFactory.iconImage(Expression.get(GeoJson.PROP_CATEGORY)),
+        PropertyFactory.iconAllowOverlap(true),
+        PropertyFactory.iconIgnorePlacement(true),
+        PropertyFactory.iconSize(
             Expression.interpolate(
                 Expression.linear(), Expression.zoom(),
-                Expression.stop(13, 3.5f), Expression.stop(16, 6f), Expression.stop(19, 10f),
+                Expression.stop(13, 0.55f), Expression.stop(16, 0.8f), Expression.stop(19, 1.1f),
             ),
         ),
-        PropertyFactory.circleStrokeColor(Expression.color(android.graphics.Color.WHITE)),
-        PropertyFactory.circleStrokeWidth(1.5f),
     )
-}
 
 @SuppressLint("MissingPermission")
 private fun MapHolder.enableLocation(context: Context, moveCamera: Boolean) {
@@ -286,18 +284,30 @@ private fun Context.hasLocationPermission(): Boolean =
         ContextCompat.checkSelfPermission(this, it) == PackageManager.PERMISSION_GRANTED
     }
 
+/**
+ * Filter je Kategorie. Aktive Kategorien zeigen das farbige Kartensymbol, inaktive ein graues.
+ * Nach einer Suche steht die Anzahl im sichtbaren Ausschnitt dahinter.
+ */
 @Composable
-private fun CategoryChips(enabled: Set<WasteCategory>, onToggle: (WasteCategory) -> Unit) {
+private fun CategoryChips(
+    enabled: Set<WasteCategory>,
+    counts: Map<WasteCategory, Int>?,
+    onToggle: (WasteCategory) -> Unit,
+    modifier: Modifier = Modifier,
+) {
     LazyRow(
+        modifier = modifier,
         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         items(WasteCategory.entries) { category ->
+            val selected = category in enabled
+            val count = counts?.get(category)
             FilterChip(
-                selected = category in enabled,
+                selected = selected,
                 onClick = { onToggle(category) },
-                label = { Text(category.label) },
-                leadingIcon = { CategoryDot(category) },
+                label = { Text(if (count != null) "${category.label} · $count" else category.label) },
+                leadingIcon = { CategoryBadge(category, size = 20.dp, enabled = selected) },
                 colors = FilterChipDefaults.filterChipColors(
                     containerColor = MaterialTheme.colorScheme.surface,
                 ),
@@ -306,40 +316,83 @@ private fun CategoryChips(enabled: Set<WasteCategory>, onToggle: (WasteCategory)
     }
 }
 
+/** Zeigt, ob und wonach gerade gesucht wird und was gefunden wurde. */
 @Composable
-fun CategoryDot(category: WasteCategory, size: Int = 12) {
-    Box(
-        Modifier
-            .size(size.dp)
-            .background(Color(android.graphics.Color.parseColor(category.colorHex)), CircleShape),
-    )
+private fun StatusCard(state: MapUiState, onRetry: () -> Unit) {
+    val active = WasteCategory.entries.filter { it in state.enabled }
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f)),
+    ) {
+        Column(Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                when (val status = state.status) {
+                    SearchStatus.ZoomTooLow -> {
+                        Icon(painterResource(R.drawable.ic_search_off), contentDescription = null)
+                        Spacer(Modifier.size(10.dp))
+                        Text("Zum Suchen näher heranzoomen", style = MaterialTheme.typography.bodyMedium)
+                    }
+                    SearchStatus.Searching -> {
+                        CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                        Spacer(Modifier.size(10.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text("Suche in diesem Ausschnitt nach:", style = MaterialTheme.typography.bodyMedium)
+                            Spacer(Modifier.size(4.dp))
+                            BadgeRow(active)
+                        }
+                    }
+                    SearchStatus.Done -> {
+                        val found = active.filter { (state.counts[it] ?: 0) > 0 }
+                        Column(Modifier.weight(1f)) {
+                            if (found.isEmpty()) {
+                                Text(
+                                    if (active.isEmpty()) "Keine Kategorie ausgewählt"
+                                    else "Hier nichts gefunden",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                )
+                            } else {
+                                Text(
+                                    "${state.pois.size} Standorte gefunden",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                )
+                                Spacer(Modifier.size(4.dp))
+                                BadgeRow(found, state.counts)
+                            }
+                        }
+                    }
+                    is SearchStatus.Failed -> {
+                        Column(Modifier.weight(1f)) {
+                            Text("Suche fehlgeschlagen", style = MaterialTheme.typography.bodyMedium)
+                            Text(status.message, style = MaterialTheme.typography.bodySmall)
+                        }
+                        TextButton(onClick = onRetry) {
+                            Icon(painterResource(R.drawable.ic_refresh), contentDescription = null)
+                            Spacer(Modifier.size(4.dp))
+                            Text("Erneut")
+                        }
+                    }
+                }
+            }
+            Spacer(Modifier.size(6.dp))
+            Text(
+                "Daten © OpenStreetMap-Mitwirkende (ODbL)",
+                style = MaterialTheme.typography.labelSmall,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
 }
 
 @Composable
-private fun StatusCard(state: MapUiState) {
-    val text = when {
-        state.error != null -> state.error
-        state.zoomTooLow -> "Näher heranzoomen, um Standorte zu laden"
-        !state.loading && state.pois.isEmpty() -> "Keine Standorte in diesem Ausschnitt"
-        else -> null
-    }
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f)),
-    ) {
-        Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
-            if (text != null) {
-                Text(text, style = MaterialTheme.typography.bodyMedium)
-                Spacer(Modifier.size(4.dp))
-            }
+private fun BadgeRow(categories: List<WasteCategory>, counts: Map<WasteCategory, Int>? = null) {
+    LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        items(categories) { category ->
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    "Daten © OpenStreetMap-Mitwirkende (ODbL)",
-                    style = MaterialTheme.typography.labelSmall,
-                    modifier = Modifier.weight(1f),
-                )
-                if (!state.zoomTooLow) {
-                    Text("${state.pois.size} Standorte", style = MaterialTheme.typography.labelSmall)
+                CategoryBadge(category, size = 18.dp)
+                counts?.get(category)?.let {
+                    Spacer(Modifier.size(4.dp))
+                    Text("$it", style = MaterialTheme.typography.labelMedium)
                 }
             }
         }

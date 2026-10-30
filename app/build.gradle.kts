@@ -36,7 +36,17 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            // Nur Prozessorarchitekturen echter Handys; x86 brauchen nur Emulatoren (Debug-Build).
+            ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
+            // Prototyp: mit dem Debug-Schlüssel signiert. Für den Play Store durch einen
+            // Upload-Schlüssel ersetzen.
+            signingConfig = signingConfigs.getByName("debug")
         }
+    }
+
+    packaging {
+        // Native Bibliotheken komprimiert ablegen: deutlich kleinere APK zum Herunterladen.
+        jniLibs.useLegacyPackaging = true
     }
 
     compileOptions {
@@ -66,7 +76,6 @@ dependencies {
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.ui)
     implementation(libs.compose.material3)
-    implementation(libs.compose.material.icons)
     implementation(libs.compose.ui.tooling.preview)
     debugImplementation(libs.compose.ui.tooling)
 

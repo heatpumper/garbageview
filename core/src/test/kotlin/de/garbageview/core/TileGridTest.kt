@@ -31,6 +31,17 @@ class TileGridTest {
     }
 
     @Test
+    fun boundsOfTiles() {
+        val tiles = grid.tilesFor(BoundingBox(52.51, 13.38, 52.56, 13.44))
+        val bounds = grid.boundsOf(tiles)
+        assertEquals(52.50, bounds.south, 1e-9)
+        assertEquals(52.60, bounds.north, 1e-9)
+        assertEquals(13.35, bounds.west, 1e-9)
+        assertEquals(13.45, bounds.east, 1e-9)
+        assertEquals(TileGrid.Tile(268, 1050), grid.tileOf(52.52, 13.40))
+    }
+
+    @Test
     fun centerFirst() {
         val tiles = grid.tilesFor(BoundingBox(52.40, 13.30, 52.60, 13.50))
         val sorted = grid.sortedByDistance(tiles, 52.52, 13.41)

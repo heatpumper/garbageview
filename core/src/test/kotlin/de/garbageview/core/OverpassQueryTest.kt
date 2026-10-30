@@ -12,7 +12,7 @@ class OverpassQueryTest {
     @Test
     fun allCategoriesCollapseRecyclingSelectors() {
         val query = OverpassQuery.build(bbox)
-        assertTrue(query.startsWith("[out:json][timeout:25];"))
+        assertTrue(query.startsWith("[out:json][timeout:60];"))
         assertTrue(query.contains("""nwr["amenity"="recycling"](51.0,7.0,51.05,7.05);"""))
         assertTrue(query.contains("""nwr["amenity"="waste_basket"](51.0,7.0,51.05,7.05);"""))
         assertFalse(query.contains("recycling:glass"))

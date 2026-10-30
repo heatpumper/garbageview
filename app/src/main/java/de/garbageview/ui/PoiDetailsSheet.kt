@@ -12,10 +12,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Navigation
-import androidx.compose.material.icons.outlined.Flag
-import androidx.compose.material.icons.outlined.Map
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -27,7 +23,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
+import de.garbageview.R
 import de.garbageview.core.WastePoi
 import java.util.Locale
 
@@ -45,7 +43,7 @@ fun PoiDetailsSheet(poi: WastePoi, onDismiss: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                CategoryDot(poi.category, size = 16)
+                CategoryBadge(poi.category, size = 28.dp)
                 Spacer(Modifier.size(8.dp))
                 Text(poi.category.label, style = MaterialTheme.typography.labelLarge)
             }
@@ -66,13 +64,13 @@ fun PoiDetailsSheet(poi: WastePoi, onDismiss: () -> Unit) {
 
             Spacer(Modifier.size(8.dp))
             Button(onClick = { context.openNavigation(poi) }, modifier = Modifier.fillMaxWidth()) {
-                Icon(Icons.Filled.Navigation, contentDescription = null)
+                Icon(painterResource(R.drawable.ic_navigation), contentDescription = null)
                 Spacer(Modifier.size(8.dp))
                 Text("Navigation starten")
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(onClick = { context.openUrl(poi.osmUrl) }, modifier = Modifier.weight(1f)) {
-                    Icon(Icons.Outlined.Map, contentDescription = null)
+                    Icon(painterResource(R.drawable.ic_map), contentDescription = null)
                     Spacer(Modifier.size(6.dp))
                     Text("In OSM")
                 }
@@ -88,7 +86,7 @@ fun PoiDetailsSheet(poi: WastePoi, onDismiss: () -> Unit) {
                     },
                     modifier = Modifier.weight(1f),
                 ) {
-                    Icon(Icons.Outlined.Flag, contentDescription = null)
+                    Icon(painterResource(R.drawable.ic_flag), contentDescription = null)
                     Spacer(Modifier.size(6.dp))
                     Text("Fehler melden")
                 }

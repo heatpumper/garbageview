@@ -5,6 +5,9 @@ Wertstoffhöfe in Deutschland auf einer Karte zeigt.
 
 Status: **Prototyp**. Recherche der Datenquellen: [docs/DATENQUELLEN.md](docs/DATENQUELLEN.md).
 
+**APK herunterladen:** https://github.com/heatpumper/garbageview/releases/download/prototyp/garbageview.apk
+(wird bei jedem Push neu gebaut; Screenshot aus dem Emulator-Test im [Release](https://github.com/heatpumper/garbageview/releases/tag/prototyp)).
+
 ## Funktionen
 
 - Karte (MapLibre + OpenFreeMap, kein API-Key nötig), auf Deutschland begrenzt
@@ -12,7 +15,8 @@ Status: **Prototyp**. Recherche der Datenquellen: [docs/DATENQUELLEN.md](docs/DA
 - Filter nach Kategorie, Detailansicht mit Materialien, Öffnungszeiten und Betreiber
 - „Navigation starten“ (geo:-Intent), „In OSM“ und „Fehler melden“ (OSM-Notiz)
 - Eigener Standort (nur während der Nutzung)
-- Kachel-Cache (Speicher + Datei, 7 Tage), höchstens eine Overpass-Abfrage gleichzeitig
+- Eine Overpass-Abfrage pro Kartenausschnitt, Kachel-Cache (Speicher + Datei, 7 Tage)
+- Statusleiste zeigt, ob und wonach gerade gesucht wird und was gefunden wurde
 
 ## Aufbau
 
@@ -39,6 +43,14 @@ Voraussetzung: Android Studio bzw. Android SDK mit Platform 36, JDK 17+.
 - [ ] Datenschutzerklärung (URL) und Data-Safety-Formular
 - [ ] Kartenstil-URL konfigurierbar machen bzw. Fallback-Anbieter
 
-## Lizenzen der Daten
+## CI
+
+`.github/workflows/android.yml`: Unit-Tests inkl. Live-Abfrage an Overpass, verkleinerte Release-APK
+(nur arm64-v8a/armeabi-v7a), Release „prototyp“, danach Start im Emulator mit Screenshot
+(`scripts/smoke-test.sh`).
+
+## Lizenzen
+
+Symbole: Material Symbols (Apache 2.0).
 
 Standortdaten © OpenStreetMap-Mitwirkende, ODbL. Kartenkacheln: OpenFreeMap, © OpenMapTiles, Daten von OpenStreetMap.

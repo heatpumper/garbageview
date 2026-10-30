@@ -1,13 +1,15 @@
 package de.garbageview.ui
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
-import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
 import de.garbageview.GarbageViewApp
 import de.garbageview.core.BoundingBox
+import de.garbageview.core.OverpassException
 import de.garbageview.core.WasteCategory
 import de.garbageview.core.WastePoi
 import de.garbageview.data.PoiRepository
@@ -18,14 +20,24 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.io.IOException
+
+/** Was die Suche gerade macht; wird in der Statusleiste angezeigt. */
+sealed interface SearchStatus {
+    /** Karte zu weit herausgezoomt, es wird nicht gesucht. */
+    data object ZoomTooLow : SearchStatus
+    data object Searching : SearchStatus
+    data object Done : SearchStatus
+    data class Failed(val message: String) : SearchStatus
+}
 
 data class MapUiState(
     val enabled: Set<WasteCategory> = WasteCategory.entries.toSet(),
-    /** Alle geladenen Standorte im sichtbaren Bereich, bereits nach [enabled] gefiltert. */
+    /** Geladene Standorte im sichtbaren Bereich, bereits nach [enabled] gefiltert. */
     val pois: List<WastePoi> = emptyList(),
-    val loading: Boolean = false,
-    val zoomTooLow: Boolean = true,
-    val error: String? = null,
+    /** Anzahl je Kategorie im sichtbaren Bereich, unabhängig vom Filter. */
+    val counts: Map<WasteCategory, Int> = emptyMap(),
+    val status: SearchStatus = SearchStatus.ZoomTooLow,
     val selected: WastePoi? = null,
 )
 
@@ -37,38 +49,44 @@ class MapViewModel(private val repository: PoiRepository) : ViewModel() {
     /** Ungefilterte Standorte des aktuellen Ausschnitts, nach Schlüssel dedupliziert. */
     private var visible: Map<String, WastePoi> = emptyMap()
     private var loadJob: Job? = null
+    private var lastViewport: Pair<BoundingBox, Double>? = null
 
     fun onViewportChanged(bbox: BoundingBox, zoom: Double) {
+        lastViewport = bbox to zoom
         loadJob?.cancel()
         val grid = repository.grid
         val tiles = grid.tilesFor(bbox)
         if (zoom < MIN_ZOOM || tiles.size > MAX_TILES) {
-            _state.update { it.copy(zoomTooLow = true, loading = false, error = null) }
+            publish(emptyList(), SearchStatus.ZoomTooLow)
             return
         }
-        val center = (bbox.south + bbox.north) / 2 to (bbox.west + bbox.east) / 2
-        val ordered = grid.sortedByDistance(tiles, center.first, center.second)
-
-        // Bereits geladene Kacheln sofort anzeigen.
-        val collected = LinkedHashMap<String, WastePoi>()
-        ordered.mapNotNull { repository.cached(it) }.forEach { list -> list.forEach { collected[it.key] = it } }
-        publish(collected, loading = ordered.any { repository.cached(it) == null })
-
-        loadJob = viewModelScope.launch {
-            var error: String? = null
-            for (tile in ordered) {
-                if (repository.cached(tile) != null) continue
-                try {
-                    repository.load(tile).forEach { collected[it.key] = it }
-                    publish(collected, loading = true)
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (e: Exception) {
-                    error = "Daten konnten nicht geladen werden: ${e.message ?: e.javaClass.simpleName}"
-                }
-            }
-            publish(collected, loading = false, error = error)
+        val ordered = grid.sortedByDistance(tiles, (bbox.south + bbox.north) / 2, (bbox.west + bbox.east) / 2)
+        val cached = ordered.mapNotNull { repository.cached(it) }
+        if (cached.size == ordered.size) {
+            publish(cached.flatten(), SearchStatus.Done)
+            return
         }
+        // Bereits bekannte Kacheln sofort zeigen, den Rest suchen.
+        publish(cached.flatten(), SearchStatus.Searching)
+        loadJob = viewModelScope.launch {
+            try {
+                publish(repository.load(ordered), SearchStatus.Done)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w("GarbageView", "Suche fehlgeschlagen", e)
+                val message = when (e) {
+                    is OverpassException -> "Der Datenserver ist gerade überlastet."
+                    is IOException -> e.message ?: "Keine Verbindung zum Datenserver."
+                    else -> e.message ?: e.javaClass.simpleName
+                }
+                _state.update { it.copy(status = SearchStatus.Failed(message)) }
+            }
+        }
+    }
+
+    fun retry() {
+        lastViewport?.let { (bbox, zoom) -> onViewportChanged(bbox, zoom) }
     }
 
     fun toggle(category: WasteCategory) {
@@ -82,17 +100,11 @@ class MapViewModel(private val repository: PoiRepository) : ViewModel() {
         _state.update { s -> s.copy(selected = key?.let { visible[it] }) }
     }
 
-    fun dismissError() = _state.update { it.copy(error = null) }
-
-    private fun publish(collected: Map<String, WastePoi>, loading: Boolean, error: String? = null) {
-        visible = collected.toMap()
+    private fun publish(pois: List<WastePoi>, status: SearchStatus) {
+        visible = pois.associateBy { it.key }
+        val counts = WasteCategory.entries.associateWith { c -> visible.values.count { c in it.categories } }
         _state.update {
-            it.copy(
-                pois = filter(visible, it.enabled),
-                loading = loading,
-                zoomTooLow = false,
-                error = error,
-            )
+            it.copy(pois = filter(visible, it.enabled), counts = counts, status = status)
         }
     }
 
@@ -100,9 +112,9 @@ class MapViewModel(private val repository: PoiRepository) : ViewModel() {
         pois.values.filter { poi -> poi.categories.any { it in enabled } }
 
     companion object {
-        /** Unterhalb dieser Zoomstufe werden keine Daten geladen (Last auf Overpass begrenzen). */
+        /** Unterhalb dieser Zoomstufe wird nicht gesucht (Last auf Overpass begrenzen). */
         const val MIN_ZOOM = 13.0
-        const val MAX_TILES = 12
+        const val MAX_TILES = 9
 
         val Factory: ViewModelProvider.Factory = viewModelFactory {
             initializer {

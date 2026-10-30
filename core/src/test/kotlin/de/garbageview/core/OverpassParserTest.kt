@@ -50,9 +50,15 @@ class OverpassParserTest {
         )
     }
 
+    @Test(expected = OverpassException::class)
+    fun runtimeErrorIsReported() {
+        OverpassParser.parse(
+            """{"elements": [], "remark": "runtime error: Query timed out in \"query\" at line 3 after 61 seconds."}""",
+        )
+    }
+
     @Test
     fun emptyResponse() {
         assertEquals(emptyList<WastePoi>(), OverpassParser.parse("""{"elements": []}"""))
-        assertEquals(emptyList<WastePoi>(), OverpassParser.parse("""{"remark": "timeout"}"""))
     }
 }
