@@ -39,7 +39,17 @@ class TileGridTest {
         assertEquals(13.35, bounds.west, 1e-9)
         assertEquals(13.45, bounds.east, 1e-9)
         assertEquals(TileGrid.Tile(268, 1050), grid.tileOf(52.52, 13.40))
-        assertEquals(TileGrid.Tile(670, 2626), TileGrid().tileOf(52.52, 13.40))
+        // Regionsdatei region_53_210.json.gz (siehe scripts/build_data.py)
+        assertEquals(TileGrid.Tile(53, 210), TileGrid().tileOf(52.52, 13.40))
+    }
+
+    @Test
+    fun expandedBoundingBox() {
+        val box = BoundingBox(52.0, 13.0, 52.2, 13.4).expanded(0.5)
+        assertEquals(51.9, box.south, 1e-9)
+        assertEquals(52.3, box.north, 1e-9)
+        assertEquals(12.8, box.west, 1e-9)
+        assertEquals(13.6, box.east, 1e-9)
     }
 
     @Test

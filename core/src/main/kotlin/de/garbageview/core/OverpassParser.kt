@@ -12,7 +12,10 @@ import kotlinx.serialization.json.longOrNull
 /** Overpass hat die Abfrage abgebrochen (z. B. Zeitüberschreitung oder Überlastung). */
 class OverpassException(message: String) : Exception(message)
 
-/** Liest die JSON-Antwort der Overpass API. */
+/**
+ * Liest JSON im Format der Overpass API. Dieses Format verwenden auch die Regionsdateien
+ * (scripts/build_data.py) und der Cache ([CacheFormat]).
+ */
 object OverpassParser {
 
     private val json = Json { ignoreUnknownKeys = true }

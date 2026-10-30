@@ -18,8 +18,12 @@ data class BoundingBox(
     fun contains(lat: Double, lon: Double): Boolean =
         lat in south..north && lon in west..east
 
-    /** Format für Overpass-Filter: (süd,west,nord,ost). */
-    fun toOverpass(): String = "$south,$west,$north,$east"
+    /** Vergrößert das Rechteck auf jeder Seite um [fraction] seiner Höhe bzw. Breite. */
+    fun expanded(fraction: Double): BoundingBox {
+        val dLat = (north - south) * fraction
+        val dLon = (east - west) * fraction
+        return BoundingBox(south - dLat, west - dLon, north + dLat, east + dLon)
+    }
 
     companion object {
         /** Grobe Ausdehnung Deutschlands inkl. kleinem Rand. */

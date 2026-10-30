@@ -2,93 +2,68 @@ package de.garbageview.data
 
 import android.util.Log
 import de.garbageview.core.CacheFormat
-import de.garbageview.core.OverpassParser
-import de.garbageview.core.OverpassQuery
 import de.garbageview.core.TileGrid
 import de.garbageview.core.WastePoi
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.File
-import java.util.concurrent.ConcurrentHashMap
+import java.util.zip.GZIPInputStream
 
 /**
- * Lädt Standorte kachelweise und speichert sie im Arbeitsspeicher und im Cache-Verzeichnis.
- *
- * Fehlende Kacheln eines Ausschnitts werden mit **einer** Overpass-Abfrage über ihr
- * umschließendes Rechteck geladen und danach auf die Kacheln verteilt. Ein [Mutex] sorgt dafür,
- * dass höchstens eine Abfrage gleichzeitig läuft.
+ * Lädt Standorte regionsweise (siehe [TileGrid.REGION_DEGREES]) und hält sie im Arbeitsspeicher
+ * und als gepackte Datei im Cache-Verzeichnis.
  */
 class PoiRepository(
-    private val client: OverpassClient,
+    private val client: RegionClient,
     private val cacheDir: File,
     val grid: TileGrid = TileGrid(),
-    private val maxAgeMs: Long = 7L * 24 * 60 * 60 * 1000,
+    private val maxAgeMs: Long = 3L * 24 * 60 * 60 * 1000,
 ) {
-    private val memory = ConcurrentHashMap<TileGrid.Tile, List<WastePoi>>()
-    private val networkLock = Mutex()
+    /** Zuletzt benutzte Regionen; begrenzt, damit große Städte den Speicher nicht füllen. */
+    private val memory = object : LinkedHashMap<TileGrid.Tile, List<WastePoi>>(8, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<TileGrid.Tile, List<WastePoi>>) =
+            size > MAX_REGIONS_IN_MEMORY
+    }
 
-    fun cached(tile: TileGrid.Tile): List<WastePoi>? = memory[tile]
+    @Synchronized
+    fun cached(region: TileGrid.Tile): List<WastePoi>? = memory[region]
 
-    /** Lädt alle [tiles] (aus Cache oder Netz) und liefert ihre Standorte. */
-    suspend fun load(tiles: Collection<TileGrid.Tile>): List<WastePoi> {
-        for (tile in tiles) {
-            if (!memory.containsKey(tile)) readDisk(tile)?.let { memory[tile] = it }
+    suspend fun load(region: TileGrid.Tile): List<WastePoi> {
+        cached(region)?.let { return it }
+        val started = System.currentTimeMillis()
+        val file = File(cacheDir, "region_${region.x}_${region.y}.json.gz")
+        val fresh = withContext(Dispatchers.IO) {
+            file.exists() && System.currentTimeMillis() - file.lastModified() < maxAgeMs
         }
-        val missing = tiles.filter { !memory.containsKey(it) }
-        if (missing.isNotEmpty()) {
-            networkLock.withLock {
-                val stillMissing = missing.filter { !memory.containsKey(it) }
-                if (stillMissing.isNotEmpty()) fetch(stillMissing)
+        val bytes = if (fresh) {
+            withContext(Dispatchers.IO) { file.readBytes() }
+        } else {
+            client.fetch(region)?.also { writeCache(file, it) }
+        }
+        val pois = if (bytes == null) {
+            emptyList()
+        } else {
+            withContext(Dispatchers.Default) {
+                CacheFormat.decode(GZIPInputStream(bytes.inputStream()).bufferedReader().readText())
             }
         }
-        return tiles.flatMap { memory[it].orEmpty() }
+        Log.i(TAG, "Region ${region.key}: ${pois.size} Standorte in ${System.currentTimeMillis() - started} ms" +
+            if (fresh) " (Cache)" else "")
+        synchronized(this) { memory[region] = pois }
+        return pois
     }
 
-    private suspend fun fetch(missing: List<TileGrid.Tile>) {
-        val bounds = grid.boundsOf(missing)
-        val covered = grid.tilesFor(bounds).filter {
-            // tilesFor schließt Kacheln am Rand mit ein; nur echte Innenkacheln zählen.
-            val b = grid.bounds(it)
-            b.south >= bounds.south - EPS && b.north <= bounds.north + EPS &&
-                b.west >= bounds.west - EPS && b.east <= bounds.east + EPS
-        }
-        val started = System.currentTimeMillis()
-        Log.i(TAG, "Overpass-Abfrage für ${covered.size} Kacheln: $bounds")
-        val body = client.query(OverpassQuery.build(bounds))
-        val pois = withContext(Dispatchers.Default) { OverpassParser.parse(body) }
-        Log.i(TAG, "${pois.size} Standorte in ${System.currentTimeMillis() - started} ms geladen")
-
-        val byTile = pois.groupBy { grid.tileOf(it.lat, it.lon) }
-        for (tile in covered) {
-            val list = byTile[tile].orEmpty()
-            memory[tile] = list
-            writeDisk(tile, list)
-        }
-    }
-
-    private suspend fun readDisk(tile: TileGrid.Tile): List<WastePoi>? = withContext(Dispatchers.IO) {
-        val file = fileFor(tile)
-        if (!file.exists() || System.currentTimeMillis() - file.lastModified() > maxAgeMs) {
-            return@withContext null
-        }
-        runCatching { CacheFormat.decode(file.readText()) }.getOrNull()
-    }
-
-    private suspend fun writeDisk(tile: TileGrid.Tile, pois: List<WastePoi>) = withContext(Dispatchers.IO) {
+    private suspend fun writeCache(file: File, bytes: ByteArray) = withContext(Dispatchers.IO) {
         runCatching {
             cacheDir.mkdirs()
-            val tmp = File(cacheDir, "${tile.key}.tmp")
-            tmp.writeText(CacheFormat.encode(pois))
-            tmp.renameTo(fileFor(tile))
+            val tmp = File(cacheDir, "${file.name}.tmp")
+            tmp.writeBytes(bytes)
+            tmp.renameTo(file)
         }
     }
-
-    private fun fileFor(tile: TileGrid.Tile) = File(cacheDir, "${tile.key}.json")
 
     private companion object {
         const val TAG = "GarbageView"
-        const val EPS = 1e-9
+        const val MAX_REGIONS_IN_MEMORY = 6
     }
 }

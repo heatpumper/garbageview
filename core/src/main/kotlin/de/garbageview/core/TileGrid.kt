@@ -3,10 +3,10 @@ package de.garbageview.core
 import kotlin.math.floor
 
 /**
- * Teilt die Welt in feste Kacheln von [sizeDegrees] Grad. Abfragen und Cache arbeiten
- * pro Kachel, damit kleine Kartenverschiebungen keine neuen Abfragen auslösen.
+ * Teilt die Welt in feste Kacheln von [sizeDegrees] Grad. Die Standortdaten liegen je Kachel
+ * (Region) in einer eigenen Datei, siehe scripts/build_data.py.
  */
-class TileGrid(val sizeDegrees: Double = 0.02) {
+class TileGrid(val sizeDegrees: Double = REGION_DEGREES) {
 
     data class Tile(val x: Int, val y: Int) {
         val key: String get() = "${x}_$y"
@@ -50,4 +50,9 @@ class TileGrid(val sizeDegrees: Double = 0.02) {
     }
 
     private fun index(value: Double): Int = floor(value / sizeDegrees).toInt()
+
+    companion object {
+        /** Größe der Regionsdateien; muss zu REGION_SIZE in scripts/build_data.py passen. */
+        const val REGION_DEGREES = 0.25
+    }
 }

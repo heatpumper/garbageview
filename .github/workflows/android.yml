@@ -23,9 +23,7 @@ jobs:
           distribution: temurin
           java-version: 17
       - uses: gradle/actions/setup-gradle@v4
-      - name: Unit-Tests (core, inkl. Live-Abfrage an Overpass)
-        env:
-          OVERPASS_LIVE_TEST: "1"
+      - name: Unit-Tests (core)
         run: ./gradlew :core:test
       - name: Release-APK bauen (verkleinert) und Lint
         run: ./gradlew :app:assembleRelease :app:lintDebug
@@ -71,6 +69,13 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
       - name: Debug-APK bauen (enthält x86_64 für den Emulator)
         run: ./gradlew :app:assembleDebug
+      - name: Auf Standortdaten warten (Release "daten", siehe data.yml)
+        run: |
+          for i in $(seq 1 50); do
+            curl -fsIL -o /dev/null https://github.com/${{ github.repository }}/releases/download/daten/index.json && exit 0
+            echo "Noch keine Standortdaten, warte 30 s ($i/50)"; sleep 30
+          done
+          echo "::error::Release daten/index.json nicht gefunden"; exit 1
       - name: KVM aktivieren
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules

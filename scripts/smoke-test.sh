@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Startet die App im Emulator auf Berlin-Mitte, wartet auf geladene Standorte und macht
+# Startet die App im Emulator auf Berlin-Mitte, wartet auf geladene Standorte (mehr als 0) und macht
 # einen Screenshot. Wird von .github/workflows/android.yml aufgerufen.
 set -uo pipefail
 
@@ -10,7 +10,7 @@ adb shell am start -n de.garbageview/.ui.MainActivity --ed lat 52.5175 --ed lon 
 
 ok=0
 for _ in $(seq 1 90); do
-  if adb logcat -d -s GarbageView:I | grep -q "Standorte in"; then ok=1; break; fi
+  if adb logcat -d -s GarbageView:I | grep -qE ": [1-9][0-9]* Standorte in"; then ok=1; break; fi
   if adb logcat -d | grep -q "FATAL EXCEPTION"; then break; fi
   sleep 2
 done

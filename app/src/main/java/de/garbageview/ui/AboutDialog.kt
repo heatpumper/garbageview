@@ -31,7 +31,7 @@ fun AboutDialog(onDismiss: () -> Unit) {
                 Section(
                     "Standortdaten",
                     "© OpenStreetMap-Mitwirkende, verfügbar unter der Open Database License (ODbL). " +
-                        "Abgefragt über die Overpass API.",
+                        "Einmal pro Woche aus dem OpenStreetMap-Auszug von Geofabrik erzeugt.",
                 )
                 TextButton(onClick = { context.openUrl("https://www.openstreetmap.org/copyright") }) {
                     Text("openstreetmap.org/copyright")
@@ -47,8 +47,8 @@ fun AboutDialog(onDismiss: () -> Unit) {
                 )
                 Section(
                     "Datenschutz",
-                    "Dein Standort wird nur auf dem Gerät verwendet. Die Overpass API erhält nur die " +
-                        "Rechtecke des angezeigten Kartenausschnitts, OpenFreeMap die Kartenkacheln. " +
+                    "Dein Standort wird nur auf dem Gerät verwendet. Die App lädt Kartenkacheln von " +
+                        "OpenFreeMap und Standortdaten für Regionen von etwa 28 × 17 km von GitHub. " +
                         "Beide Dienste sehen dabei technisch bedingt deine IP-Adresse.",
                 )
             }
