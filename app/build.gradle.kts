@@ -14,8 +14,21 @@ android {
         applicationId = "de.garbageview"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.1.0"
+        // In CI zählt die Versionsnummer mit, damit jede APK als Update installierbar ist.
+        val ciRun = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull()
+        versionCode = ciRun ?: 1
+        versionName = if (ciRun != null) "0.1.0-ci.$ciRun" else "0.1.0"
+    }
+
+    signingConfigs {
+        // Gemeinsamer Debug-Schlüssel, damit Prototyp-APKs aus verschiedenen Builds
+        // einander ersetzen können. Nicht für den Play Store verwenden.
+        getByName("debug") {
+            storeFile = file("debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
     }
 
     buildTypes {

@@ -4,10 +4,18 @@ on:
   push:
     branches: [main, "claude/**"]
   pull_request:
+  workflow_dispatch:
+
+# Nur ein Lauf zur Zeit pro Branch, damit sich Releases nicht überschneiden.
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -19,7 +27,26 @@ jobs:
         run: ./gradlew :core:test
       - name: Debug-APK bauen und Lint
         run: ./gradlew :app:assembleDebug :app:lintDebug
+      - name: APK umbenennen
+        run: cp app/build/outputs/apk/debug/app-debug.apk garbageview-debug.apk
       - uses: actions/upload-artifact@v4
         with:
           name: garbageview-debug-apk
-          path: app/build/outputs/apk/debug/*.apk
+          path: garbageview-debug.apk
+      # Vorab-Release "prototyp" mit der APK als direktem Download aktualisieren.
+      - name: Prototyp-Release aktualisieren
+        if: github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          NOTES="Automatischer Debug-Build von \`${GITHUB_REF_NAME}\` (Commit ${GITHUB_SHA::7}, Lauf #${GITHUB_RUN_NUMBER}).
+
+          Installation: APK auf dem Android-Gerät herunterladen und öffnen. Dafür muss die Installation aus unbekannten Quellen erlaubt sein.
+
+          Nur zum Testen, nicht für den Play Store."
+          gh release delete prototyp --yes --cleanup-tag || true
+          gh release create prototyp garbageview-debug.apk \
+            --target "$GITHUB_SHA" \
+            --prerelease \
+            --title "Prototyp (Debug-Build #${GITHUB_RUN_NUMBER})" \
+            --notes "$NOTES"

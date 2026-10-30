@@ -9,3 +9,5 @@ captures/
 *.jks
 *.keystore
 keystore.properties
+# Fester Debug-Schlüssel für CI-Builds (kein Geheimnis, nur für Prototyp-APKs).
+!app/debug.keystore
