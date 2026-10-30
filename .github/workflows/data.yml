@@ -1,0 +1,68 @@
+name: Standortdaten
+
+# Erzeugt einmal pro Woche die Standortdaten aus dem OSM-Extrakt von Geofabrik und legt sie
+# als Dateien im Release "daten" ab. Die App lädt daraus nur die Region, die sie gerade zeigt.
+on:
+  schedule:
+    - cron: "17 3 * * 1"
+  workflow_dispatch:
+  push:
+    branches: [main, "claude/**"]
+    paths:
+      - scripts/build_data.py
+      - .github/workflows/data.yml
+
+concurrency:
+  group: data
+  cancel-in-progress: false
+
+jobs:
+  build-data:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Werkzeuge installieren
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q osmium-tool
+          pip install osmium
+      - name: OSM-Extrakt Deutschland laden (Geofabrik)
+        run: |
+          curl -fsSL -A "GarbageView-Data (https://github.com/heatpumper/garbageview)" \
+            -o germany.osm.pbf https://download.geofabrik.de/europe/germany-latest.osm.pbf
+          ls -lh germany.osm.pbf
+      - name: Abfall-Standorte herausfiltern
+        run: |
+          osmium tags-filter germany.osm.pbf \
+            nw/amenity=waste_basket,recycling,waste_disposal n/vending=excrement_bags \
+            -o waste.osm.pbf
+          rm germany.osm.pbf
+          ls -lh waste.osm.pbf
+      - name: Regionsdateien erzeugen
+        run: |
+          python scripts/build_data.py waste.osm.pbf out
+          echo "Dateien: $(ls out | wc -l), Größe: $(du -sh out | cut -f1)"
+          # Ein Release fasst höchstens 1000 Dateien.
+          test "$(ls out | wc -l)" -lt 1000
+      - name: Release "daten" aktualisieren
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          NOTES="Standortdaten für die App, erzeugt am $(date -u +%Y-%m-%d) aus dem OSM-Extrakt von Geofabrik.
+
+          Daten © OpenStreetMap-Mitwirkende, verfügbar unter der Open Database License (ODbL): https://www.openstreetmap.org/copyright"
+          if ! gh release view daten >/dev/null 2>&1; then
+            gh release create daten --title "Standortdaten" --notes "$NOTES" --target "$GITHUB_SHA"
+          else
+            gh release edit daten --notes "$NOTES"
+          fi
+          # Erst neue Dateien hochladen (überschreibt vorhandene), dann veraltete entfernen.
+          gh release upload daten out/* --clobber
+          for asset in $(gh release view daten --json assets -q '.assets[].name'); do
+            [ -f "out/$asset" ] || gh release delete-asset daten "$asset" --yes
+          done
