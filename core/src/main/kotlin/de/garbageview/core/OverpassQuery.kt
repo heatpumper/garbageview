@@ -6,7 +6,8 @@ object OverpassQuery {
     /**
      * Fragt alle Kategorien in [bbox] ab. Die Filterung nach Kategorie passiert in der App,
      * damit ein Umschalten der Filter keine neue Netzwerkabfrage auslöst.
-     * `out center` liefert für Flächen (z. B. Wertstoffhöfe) einen Mittelpunkt.
+     * `out center` liefert Koordinaten für Punkte und einen Mittelpunkt für Flächen
+     * (z. B. Wertstoffhöfe). Nicht `out tags` verwenden: Das lässt die Koordinaten der Punkte weg.
      */
     fun build(
         bbox: BoundingBox,
@@ -22,6 +23,6 @@ object OverpassQuery {
             selectors
         }
         val body = reduced.joinToString("\n") { "  nwr$it($box);" }
-        return "[out:json][timeout:$timeoutSeconds];\n(\n$body\n);\nout center tags;"
+        return "[out:json][timeout:$timeoutSeconds];\n(\n$body\n);\nout center;"
     }
 }

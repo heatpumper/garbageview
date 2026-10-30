@@ -16,7 +16,7 @@ class OverpassQueryTest {
         assertTrue(query.contains("""nwr["amenity"="recycling"](51.0,7.0,51.05,7.05);"""))
         assertTrue(query.contains("""nwr["amenity"="waste_basket"](51.0,7.0,51.05,7.05);"""))
         assertFalse(query.contains("recycling:glass"))
-        assertTrue(query.endsWith("out center tags;"))
+        assertTrue(query.endsWith("\nout center;"))
     }
 
     @Test

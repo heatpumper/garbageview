@@ -23,7 +23,9 @@ jobs:
           distribution: temurin
           java-version: 17
       - uses: gradle/actions/setup-gradle@v4
-      - name: Unit-Tests (core)
+      - name: Unit-Tests (core, inkl. Live-Abfrage an Overpass)
+        env:
+          OVERPASS_LIVE_TEST: "1"
         run: ./gradlew :core:test
       - name: Debug-APK bauen und Lint
         run: ./gradlew :app:assembleDebug :app:lintDebug

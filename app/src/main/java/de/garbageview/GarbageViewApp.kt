@@ -8,7 +8,8 @@ import org.maplibre.android.MapLibre
 class GarbageViewApp : Application() {
 
     val repository: PoiRepository by lazy {
-        PoiRepository(OverpassClient(), cacheDir = cacheDir.resolve("overpass"))
+        // Versioniert: Antworten früherer Versionen ohne Punkt-Koordinaten nicht wiederverwenden.
+        PoiRepository(OverpassClient(), cacheDir = cacheDir.resolve("overpass-v2"))
     }
 
     override fun onCreate() {
