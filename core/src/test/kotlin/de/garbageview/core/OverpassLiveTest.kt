@@ -21,19 +21,36 @@ class OverpassLiveTest {
         assumeTrue(System.getenv("OVERPASS_LIVE_TEST") == "1")
 
         val query = OverpassQuery.build(BoundingBox(52.510, 13.380, 52.525, 13.410))
-        val request = HttpRequest.newBuilder(URI("https://overpass-api.de/api/interpreter"))
-            .timeout(Duration.ofSeconds(60))
-            .header("User-Agent", "GarbageView-CI (https://github.com/heatpumper/garbageview)")
-            .header("Content-Type", "application/x-www-form-urlencoded")
-            .POST(HttpRequest.BodyPublishers.ofString("data=" + URLEncoder.encode(query, Charsets.UTF_8)))
-            .build()
-        val response = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString())
-        assertTrue("HTTP ${response.statusCode()}", response.statusCode() == 200)
+        val client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(20)).build()
+        val body = ENDPOINTS.firstNotNullOfOrNull { endpoint ->
+            val request = HttpRequest.newBuilder(URI(endpoint))
+                .timeout(Duration.ofSeconds(60))
+                .header("User-Agent", "GarbageView-CI (https://github.com/heatpumper/garbageview)")
+                .header("Content-Type", "application/x-www-form-urlencoded")
+                .POST(HttpRequest.BodyPublishers.ofString("data=" + URLEncoder.encode(query, Charsets.UTF_8)))
+                .build()
+            val response = runCatching { client.send(request, HttpResponse.BodyHandlers.ofString()) }
+                .onFailure { println("$endpoint: ${it.javaClass.simpleName}: ${it.message}") }
+                .getOrNull() ?: return@firstNotNullOfOrNull null
+            println("$endpoint: HTTP ${response.statusCode()}")
+            if (response.statusCode() == 200) response.body() else {
+                println(response.body().take(500))
+                null
+            }
+        }
+        assertTrue("Keine Overpass-Instanz hat mit HTTP 200 geantwortet", body != null)
 
-        val pois = OverpassParser.parse(response.body())
+        val pois = OverpassParser.parse(body!!)
         val baskets = pois.count { it.category == WasteCategory.WASTE_BASKET }
         println("Overpass live: ${pois.size} Standorte, davon $baskets Mülleimer")
         assertTrue("Keine Mülleimer gefunden", baskets > 10)
         assertTrue("Keine Punkte (node) mit Koordinaten", pois.any { it.osmType == "node" })
+    }
+
+    private companion object {
+        val ENDPOINTS = listOf(
+            "https://overpass-api.de/api/interpreter",
+            "https://overpass.kumi.systems/api/interpreter",
+        )
     }
 }
