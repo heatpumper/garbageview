@@ -57,12 +57,13 @@ jobs:
 
           Daten © OpenStreetMap-Mitwirkende, verfügbar unter der Open Database License (ODbL): https://www.openstreetmap.org/copyright"
           if ! gh release view daten >/dev/null 2>&1; then
-            gh release create daten --title "Standortdaten" --notes "$NOTES" --target "$GITHUB_SHA"
+            # Release mitsamt Dateien anlegen (ein leeres Release lehnt die API hier mit 403 ab).
+            gh release create daten out/* --title "Standortdaten" --notes "$NOTES" --target "$GITHUB_SHA"
           else
             gh release edit daten --notes "$NOTES"
+            # Erst neue Dateien hochladen (überschreibt vorhandene), dann veraltete entfernen.
+            gh release upload daten out/* --clobber
+            for asset in $(gh release view daten --json assets -q '.assets[].name'); do
+              [ -f "out/$asset" ] || gh release delete-asset daten "$asset" --yes
+            done
           fi
-          # Erst neue Dateien hochladen (überschreibt vorhandene), dann veraltete entfernen.
-          gh release upload daten out/* --clobber
-          for asset in $(gh release view daten --json assets -q '.assets[].name'); do
-            [ -f "out/$asset" ] || gh release delete-asset daten "$asset" --yes
-          done
