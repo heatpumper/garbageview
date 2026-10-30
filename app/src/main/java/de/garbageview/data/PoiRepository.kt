@@ -34,12 +34,12 @@ class PoiRepository(
     /** Lädt alle [tiles] (aus Cache oder Netz) und liefert ihre Standorte. */
     suspend fun load(tiles: Collection<TileGrid.Tile>): List<WastePoi> {
         for (tile in tiles) {
-            if (tile !in memory) readDisk(tile)?.let { memory[tile] = it }
+            if (!memory.containsKey(tile)) readDisk(tile)?.let { memory[tile] = it }
         }
-        val missing = tiles.filter { it !in memory }
+        val missing = tiles.filter { !memory.containsKey(it) }
         if (missing.isNotEmpty()) {
             networkLock.withLock {
-                val stillMissing = missing.filter { it !in memory }
+                val stillMissing = missing.filter { !memory.containsKey(it) }
                 if (stillMissing.isNotEmpty()) fetch(stillMissing)
             }
         }
