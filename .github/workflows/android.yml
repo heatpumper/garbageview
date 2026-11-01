@@ -3,7 +3,18 @@ name: Android CI
 on:
   push:
     branches: [main, "claude/**"]
+    # Reine Doku- oder Datenänderungen brauchen keinen App-Build.
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
+      - scripts/build_data.py
+      - .github/workflows/data.yml
   pull_request:
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
+      - scripts/build_data.py
+      - .github/workflows/data.yml
   workflow_dispatch:
 
 # Nur ein Lauf zur Zeit pro Branch, damit sich Releases nicht überschneiden.
@@ -31,10 +42,13 @@ jobs:
         run: |
           cp app/build/outputs/apk/release/app-release.apk garbageview.apk
           ls -l garbageview.apk
+      # Bei Pushes liegt die APK im Release "prototyp"; nur für Pull Requests kurz aufbewahren.
       - uses: actions/upload-artifact@v4
+        if: github.event_name == 'pull_request'
         with:
           name: garbageview-apk
           path: garbageview.apk
+          retention-days: 3
       # Vorab-Release "prototyp" mit der APK als direktem Download aktualisieren.
       - name: Prototyp-Release aktualisieren
         if: github.event_name != 'pull_request'
@@ -97,6 +111,7 @@ jobs:
           path: |
             smoke-screenshot.png
             smoke-logcat.txt
+          retention-days: 3
       - name: Screenshot an das Release hängen
         if: always() && github.event_name != 'pull_request' && hashFiles('smoke-screenshot.png') != ''
         env:
