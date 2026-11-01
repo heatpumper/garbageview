@@ -51,7 +51,8 @@ Release „daten“ ab. Die App lädt daraus nur die Regionen des sichtbaren Aus
 
 `.github/workflows/android.yml`: Unit-Tests, verkleinerte Release-APK
 (nur arm64-v8a/armeabi-v7a), Release „prototyp“, danach Start im Emulator mit Screenshot
-(`scripts/smoke-test.sh`).
+(`scripts/smoke-test.sh`). Läuft nicht bei reinen Doku- oder Datenänderungen. Build-Artefakte
+gibt es nur bei Pull Requests (3 Tage), sonst liegt die APK im Release.
 
 ## Lizenzen
 
