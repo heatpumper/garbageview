@@ -48,6 +48,7 @@ Voraussetzung: Android Studio bzw. Android SDK mit Platform 36, JDK 17+.
 `.github/workflows/data.yml`: lädt wöchentlich den Deutschland-Extrakt von Geofabrik, filtert die
 Abfall-Standorte (`osmium`), erzeugt Regionsdateien (`scripts/build_data.py`) und legt sie im
 Release „daten“ ab. Die App lädt daraus nur die Regionen des sichtbaren Ausschnitts.
+**Derzeit ausgesetzt:** läuft nur bei manuellem Start (Actions → Standortdaten → Run workflow).
 
 `.github/workflows/android.yml`: Unit-Tests, verkleinerte Release-APK
 (nur arm64-v8a/armeabi-v7a), Release „prototyp“, danach Start im Emulator mit Screenshot

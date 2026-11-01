@@ -2,15 +2,18 @@ name: Standortdaten
 
 # Erzeugt einmal pro Woche die Standortdaten aus dem OSM-Extrakt von Geofabrik und legt sie
 # als Dateien im Release "daten" ab. Die App lädt daraus nur die Region, die sie gerade zeigt.
+# VORÜBERGEHEND AUSGESETZT: kein automatischer Download, nur manueller Start (workflow_dispatch).
+# Die App nutzt solange die zuletzt erzeugten Dateien im Release "daten".
+# Zum Reaktivieren die auskommentierten Auslöser wieder einschalten.
 on:
-  schedule:
-    - cron: "17 3 * * 1"
+  # schedule:
+  #   - cron: "17 3 * * 1"
   workflow_dispatch:
-  push:
-    branches: [main, "claude/**"]
-    paths:
-      - scripts/build_data.py
-      - .github/workflows/data.yml
+  # push:
+  #   branches: [main, "claude/**"]
+  #   paths:
+  #     - scripts/build_data.py
+  #     - .github/workflows/data.yml
 
 concurrency:
   group: data
